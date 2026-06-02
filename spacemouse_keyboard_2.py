@@ -123,7 +123,7 @@ def get_delay(value, max_val):
     return DELAY_MAX - (DELAY_MAX - DELAY_MIN) * intensity
 
 def get_rotation_key(x, y, center_x, center_y, deadzone_x, deadzone_y):
-    # Retourne (touche, valeur) ; touche=None et valeur=0 si pas de direction active.
+    # Retourne (touche, valeur) ; touche peut être None et valeur=0 si aucune direction active.
     dx = x - center_x
     dy = y - center_y
 
@@ -136,6 +136,7 @@ def get_rotation_key(x, y, center_x, center_y, deadzone_x, deadzone_y):
     return None, 0
 
 def get_rotation_modifier(z, center_z, deadzone_z):
+    # Retourne le mode de rotation selon l'axe Z : precision / grossiere / None.
     dz = z - center_z
     if dz < -deadzone_z:
         return "precision"
@@ -144,6 +145,7 @@ def get_rotation_modifier(z, center_z, deadzone_z):
     return None
 
 def get_view_action(x, y, z, center_x, center_y, center_z, deadzone_x, deadzone_y, deadzone_z):
+    # Retourne (nom_action, combo_clavier, valeur_axe, reference_axe).
     dx = x - center_x
     dy = y - center_y
     dz = z - center_z
@@ -188,7 +190,7 @@ try:
             continue
 
         if button:
-            key, combo, val, max_val = get_view_action(
+            action, combo, val, max_val = get_view_action(
                 x_val, y_val, z_val,
                 center_x, center_y, center_z,
                 deadzone_x, deadzone_y, deadzone_z
@@ -196,48 +198,48 @@ try:
             mode = "VUE"
             send_delay = 0.30
         else:
-            key, val = get_rotation_key(
+            action, val = get_rotation_key(
                 x_val, y_val,
                 center_x, center_y,
                 deadzone_x, deadzone_y
             )
             z_modifier = get_rotation_modifier(z_val, center_z, deadzone_z)
             max_val = DEFAULT_MAX_VAL
-            if key in ("left", "right"):
+            if action in ("left", "right"):
                 max_val = max_x
-            elif key in ("up", "down"):
+            elif action in ("up", "down"):
                 max_val = max_y
             mode = "ROT"
             if z_modifier == "precision":
                 mode = "ROT_PREC"
             elif z_modifier == "grossiere":
                 mode = "ROT_GROSS"
-            send_delay = get_delay(val, max_val) if key else DELAY_MAX
+            send_delay = get_delay(val, max_val) if action else DELAY_MAX
 
         now = time.time()
 
-        if key:
+        if action:
             if now - last_send >= send_delay:
                 if button:
                     pyautogui.hotkey(*combo)
                 else:
                     if z_modifier == "precision":
-                        pyautogui.hotkey("ctrl", key)
+                        pyautogui.hotkey("ctrl", action)
                     elif z_modifier == "grossiere":
-                        pyautogui.hotkey("shift", key)
+                        pyautogui.hotkey("shift", action)
                     else:
-                        pyautogui.press(key)
+                        pyautogui.press(action)
                 last_send = now
                 denom = float(max_val) or 1.0
                 intensity = min(abs(val) / denom, 1.0)
                 bar = "█" * int(intensity * 20)
-                print(f"\r[{mode}:{key:^8}] {bar:<20} ({intensity*100:.0f}%)  ", end="", flush=True)
+                print(f"\r[{mode}:{action:^12}] {bar:<20} ({intensity*100:.0f}%)  ", end="", flush=True)
         else:
             if last_key:
                 print(f"\r{'':50}", end="", flush=True)
             last_send = 0
 
-        last_key = key
+        last_key = action
         time.sleep(0.005)
 
 except KeyboardInterrupt:
