@@ -199,19 +199,19 @@ try:
                 center_x, center_y,
                 deadzone_x, deadzone_y
             )
-            mod = get_rotation_modifier(z_val, center_z, deadzone_z)
+            z_modifier = get_rotation_modifier(z_val, center_z, deadzone_z)
             if key in ("left", "right"):
                 max_val = max_x
             elif key in ("up", "down"):
                 max_val = max_y
             else:
-                max_val = max(max_x, max_y, 1)
+                max_val = 1
             mode = "ROT"
-            if mod == "precision":
+            if z_modifier == "precision":
                 mode = "ROT_PREC"
-            elif mod == "grossiere":
+            elif z_modifier == "grossiere":
                 mode = "ROT_GROSS"
-            send_delay = get_delay(val, max_val)
+            send_delay = get_delay(val, max_val) if key else DELAY_MAX
 
         now = time.time()
 
@@ -220,9 +220,9 @@ try:
                 if button:
                     pyautogui.hotkey(*combo)
                 else:
-                    if mod == "precision":
+                    if z_modifier == "precision":
                         pyautogui.hotkey("ctrl", key)
-                    elif mod == "grossiere":
+                    elif z_modifier == "grossiere":
                         pyautogui.hotkey("shift", key)
                     else:
                         pyautogui.press(key)
