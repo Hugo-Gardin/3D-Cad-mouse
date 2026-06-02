@@ -121,29 +121,50 @@ def get_delay(value, max_val):
     intensity = min(abs(value) / max(max_val, 1), 1.0)
     return DELAY_MAX - (DELAY_MAX - DELAY_MIN) * intensity
 
-def get_nav_key(x, y, z, center_x, center_y, center_z, deadzone_x, deadzone_y, deadzone_z):
+def get_rotation_key(x, y, center_x, center_y, deadzone_x, deadzone_y):
+    dx = x - center_x
+    dy = y - center_y
+
+    if abs(dx) >= abs(dy):
+        if dx >  deadzone_x: return 'right', dx
+        if dx < -deadzone_x: return 'left',  dx
+    else:
+        if dy >  deadzone_y: return 'down', dy
+        if dy < -deadzone_y: return 'up',   dy
+    return None, 0
+
+def get_rotation_modifier(z, center_z, deadzone_z):
+    dz = z - center_z
+    if dz < -deadzone_z:
+        return "precision"
+    if dz > deadzone_z:
+        return "grossiere"
+    return None
+
+def get_view_action(x, y, z, center_x, center_y, center_z, deadzone_x, deadzone_y, deadzone_z):
     dx = x - center_x
     dy = y - center_y
     dz = z - center_z
 
-    if abs(dx) >= abs(dy) and abs(dx) >= abs(dz):
-        if dx >  deadzone_x: return 'right', dx
-        if dx < -deadzone_x: return 'left',  dx
-    elif abs(dy) >= abs(dz):
-        if dy >  deadzone_y: return 'down', dy
-        if dy < -deadzone_y: return 'up',   dy
-    else:
-        if dz >  deadzone_z: return 'pgup', dz
-        if dz < -deadzone_z: return 'pgdn', dz
-    return None, 0
+    abs_dx, abs_dy, abs_dz = abs(dx), abs(dy), abs(dz)
 
-def get_zoom_key(y, center_y, deadzone_y):
-    dy = y - center_y
-    if dy < -deadzone_y:
-        return "zoom_in", dy
-    if dy > deadzone_y:
-        return "zoom_out", dy
-    return None, 0
+    if abs_dx >= abs_dy and abs_dx >= abs_dz:
+        if dx > deadzone_x:
+            return "vue_droite", ("shift", "4"), dx, deadzone_x
+        if dx < -deadzone_x:
+            return "vue_gauche", ("shift", "3"), dx, deadzone_x
+    elif abs_dy >= abs_dz:
+        if dy < -deadzone_y:
+            return "vue_dessus", ("shift", "5"), dy, deadzone_y
+        if dy > deadzone_y:
+            return "vue_dessous", ("shift", "6"), dy, deadzone_y
+    else:
+        if dz > deadzone_z:
+            return "vue_arriere", ("shift", "2"), dz, deadzone_z
+        if dz < -deadzone_z:
+            return "vue_face", ("shift", "1"), dz, deadzone_z
+
+    return None, None, 0, 1
 
 # ─── Calibration ──────────────────────────────────────────────────────────
 center_x, center_y, center_z, deadzone_x, deadzone_y, deadzone_z, max_x, max_y, max_z = calibrate()
@@ -165,37 +186,48 @@ try:
             continue
 
         if button:
-            key, val = get_zoom_key(y_val, center_y, deadzone_y)
-            max_val = max_y
-        else:
-            key, val = get_nav_key(
+            key, combo, val, max_val = get_view_action(
                 x_val, y_val, z_val,
                 center_x, center_y, center_z,
                 deadzone_x, deadzone_y, deadzone_z
             )
+            mode = "VUE"
+            send_delay = 0.30
+        else:
+            key, val = get_rotation_key(
+                x_val, y_val,
+                center_x, center_y,
+                deadzone_x, deadzone_y
+            )
+            mod = get_rotation_modifier(z_val, center_z, deadzone_z)
             if key in ("left", "right"):
                 max_val = max_x
-            elif key in ("up", "down"):
-                max_val = max_y
             else:
-                max_val = max_z
+                max_val = max_y
+            mode = "ROT"
+            if mod == "precision":
+                mode = "ROT_PREC"
+            elif mod == "grossiere":
+                mode = "ROT_GROSS"
+            send_delay = get_delay(val, max_val)
 
         now = time.time()
 
         if key:
-            delay = get_delay(val, max_val)
-            if now - last_send >= delay:
-                if key == "zoom_in":
-                    pyautogui.hotkey("shift", "z")
-                elif key == "zoom_out":
-                    pyautogui.press("z")
+            if now - last_send >= send_delay:
+                if button:
+                    pyautogui.hotkey(*combo)
                 else:
-                    pyautogui.press(key)
+                    if mod == "precision":
+                        pyautogui.hotkey("ctrl", key)
+                    elif mod == "grossiere":
+                        pyautogui.hotkey("shift", key)
+                    else:
+                        pyautogui.press(key)
                 last_send = now
                 denom = float(max_val) or 1.0
                 intensity = min(abs(val) / denom, 1.0)
                 bar = "█" * int(intensity * 20)
-                mode = "ZOOM" if button else "NAV"
                 print(f"\r[{mode}:{key:^8}] {bar:<20} ({intensity*100:.0f}%)  ", end="", flush=True)
         else:
             if last_key:
