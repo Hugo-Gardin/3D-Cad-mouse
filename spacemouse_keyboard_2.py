@@ -202,8 +202,10 @@ try:
             mod = get_rotation_modifier(z_val, center_z, deadzone_z)
             if key in ("left", "right"):
                 max_val = max_x
-            else:
+            elif key in ("up", "down"):
                 max_val = max_y
+            else:
+                max_val = max(max_x, max_y, 1)
             mode = "ROT"
             if mod == "precision":
                 mode = "ROT_PREC"
