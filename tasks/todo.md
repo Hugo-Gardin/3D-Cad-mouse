@@ -1,10 +1,8 @@
 # TODO
 
-- [x] Lire le contexte et confirmer la demande utilisateur
-- [x] Vérifier l'état initial du repo
-- [x] Ajouter GPIO33 (bouton) + GPIO34 (axe Z) dans le firmware UART
-- [x] Étendre le protocole série (X,Y,Z,B)
-- [x] Adapter le script Python (parse/calibration/navigation)
-- [x] Implémenter zoom avec bouton maintenu + joystick avant/arrière
-- [x] Vérifier la syntaxe Python après changement
-- [x] Documenter la leçon dans `tasks/lessons.md`
+- [x] Lire `tasks/lessons.md` et `tasks/todo.md`
+- [x] Vérifier le comportement actuel du script Python
+- [x] Mapper les actions clavier selon les raccourcis de l'image
+- [x] Implémenter la logique dans `spacemouse_keyboard_2.py`
+- [ ] Vérifier la syntaxe Python après modification
+- [x] Ajouter une nouvelle leçon dans `tasks/lessons.md`
