@@ -166,7 +166,7 @@ def get_view_action(x, y, z, center_x, center_y, center_z, deadzone_x, deadzone_
         if dz < -deadzone_z:
             return "vue_face", ("shift", "1"), dz, deadzone_z
 
-    return None, None, 0, DEFAULT_MAX_VAL
+    return None, (), 0, DEFAULT_MAX_VAL
 
 # ─── Calibration ──────────────────────────────────────────────────────────
 center_x, center_y, center_z, deadzone_x, deadzone_y, deadzone_z, max_x, max_y, max_z = calibrate()
@@ -202,12 +202,11 @@ try:
                 deadzone_x, deadzone_y
             )
             z_modifier = get_rotation_modifier(z_val, center_z, deadzone_z)
+            max_val = DEFAULT_MAX_VAL
             if key in ("left", "right"):
                 max_val = max_x
             elif key in ("up", "down"):
                 max_val = max_y
-            else:
-                max_val = DEFAULT_MAX_VAL
             mode = "ROT"
             if z_modifier == "precision":
                 mode = "ROT_PREC"
