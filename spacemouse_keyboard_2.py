@@ -16,7 +16,7 @@ BAUD_RATE  = 115200
 # Vitesse min/max de répétition des touches (en secondes)
 DELAY_MAX  = 0.15   # délai quand joystick légèrement incliné
 DELAY_MIN  = 0.02   # délai quand joystick à fond
-DEFAULT_MAX_VAL = 1
+DEFAULT_MAX_VALUE = 1
 
 pyautogui.FAILSAFE = True
 pyautogui.PAUSE    = 0
@@ -168,7 +168,7 @@ def get_view_action(x, y, z, center_x, center_y, center_z, deadzone_x, deadzone_
         if dz < -deadzone_z:
             return "vue_face", ("shift", "1"), dz, deadzone_z
 
-    return None, (), 0, DEFAULT_MAX_VAL
+    return None, (), 0, DEFAULT_MAX_VALUE
 
 # ─── Calibration ──────────────────────────────────────────────────────────
 center_x, center_y, center_z, deadzone_x, deadzone_y, deadzone_z, max_x, max_y, max_z = calibrate()
@@ -204,7 +204,7 @@ try:
                 deadzone_x, deadzone_y
             )
             z_modifier = get_rotation_modifier(z_val, center_z, deadzone_z)
-            max_val = DEFAULT_MAX_VAL
+            max_val = DEFAULT_MAX_VALUE
             if action in ("left", "right"):
                 max_val = max_x
             elif action in ("up", "down"):
