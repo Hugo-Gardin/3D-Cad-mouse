@@ -32,19 +32,26 @@ except Exception as e:
         print(f"  {p.device} — {p.description}")
     sys.exit(1)
 
-# ─── Lecture d'une valeur ADC ──────────────────────────────────────────────
+# ─── Lecture des valeurs UART ───────────────────────────────────────────────
 def read_values():
     for _ in range(10):
         try:
             line = ser.readline().decode("utf-8", errors="ignore").strip()
             if line.startswith("X:"):
-                parts = line.split(",")
-                x = int(parts[0].split(":")[1])
-                y = int(parts[1].split(":")[1])
-                return x, y
+                data = {}
+                for part in line.split(","):
+                    if ":" not in part:
+                        continue
+                    k, v = part.split(":", 1)
+                    data[k] = v
+                x = int(data["X"])
+                y = int(data["Y"])
+                z = int(data.get("Z", 0))
+                b = int(data.get("B", 0))
+                return x, y, z, b
         except Exception:
             pass
-    return None, None
+    return None, None, None, None
 
 # ─── Calibration ──────────────────────────────────────────────────────────
 def calibrate():
@@ -58,20 +65,23 @@ def calibrate():
     print("  Appuie sur ENTRÉE quand il est bien centré...")
     input()
 
-    samples_x, samples_y = [], []
+    samples_x, samples_y, samples_z = [], [], []
     print("  Mesure en cours...", end="", flush=True)
     for _ in range(50):
-        x, y = read_values()
+        x, y, z, _ = read_values()
         if x is not None:
             samples_x.append(x)
             samples_y.append(y)
+            samples_z.append(z)
         time.sleep(0.02)
 
     center_x = sum(samples_x) // len(samples_x)
     center_y = sum(samples_y) // len(samples_y)
+    center_z = sum(samples_z) // len(samples_z)
     noise_x  = max(samples_x) - min(samples_x)
     noise_y  = max(samples_y) - min(samples_y)
-    print(f" OK  (centre X:{center_x} Y:{center_y}, bruit X:{noise_x} Y:{noise_y})")
+    noise_z  = max(samples_z) - min(samples_z)
+    print(f" OK  (centre X:{center_x} Y:{center_y} Z:{center_z}, bruit X:{noise_x} Y:{noise_y} Z:{noise_z})")
 
     # Étape 2 : mouvement maximum
     print()
@@ -79,50 +89,64 @@ def calibrate():
     print("  Appuie sur ENTRÉE quand c'est fait...")
     input()
 
-    max_x, max_y = 0, 0
+    max_x, max_y, max_z = 0, 0, 0
     print("  Mesure en cours (5 secondes)...", end="", flush=True)
     t = time.time()
     while time.time() - t < 5:
-        x, y = read_values()
+        x, y, z, _ = read_values()
         if x is not None:
             max_x = max(max_x, abs(x - center_x))
             max_y = max(max_y, abs(y - center_y))
-    print(f" OK  (max X:{max_x} Y:{max_y})")
+            max_z = max(max_z, abs(z - center_z))
+    print(f" OK  (max X:{max_x} Y:{max_y} Z:{max_z})")
 
     # Étape 3 : calcul zone morte
     deadzone_x = max(noise_x * 3, 200)
     deadzone_y = max(noise_y * 3, 200)
-    deadzone   = max(deadzone_x, deadzone_y)
+    deadzone_z = max(noise_z * 3, 200)
 
     print()
     print("╔══════════════════════════════════════╗")
     print("║         CALIBRATION TERMINÉE         ║")
-    print(f"║  Centre  : X={center_x:<6} Y={center_y:<6}       ║")
-    print(f"║  Zone morte : {deadzone:<6}                ║")
-    print(f"║  Plage max  : X={max_x:<6} Y={max_y:<6}       ║")
+    print(f"║  Centre  : X={center_x:<6} Y={center_y:<6} Z={center_z:<6}  ║")
+    print(f"║  Zone morte : X={deadzone_x:<6} Y={deadzone_y:<6} Z={deadzone_z:<6} ║")
+    print(f"║  Plage max  : X={max_x:<6} Y={max_y:<6} Z={max_z:<6} ║")
     print("╚══════════════════════════════════════╝")
     print()
 
-    return center_x, center_y, deadzone, max_x, max_y
+    return center_x, center_y, center_z, deadzone_x, deadzone_y, deadzone_z, max_x, max_y, max_z
 
 # ─── Fonctions ────────────────────────────────────────────────────────────
 def get_delay(value, max_val):
     intensity = min(abs(value) / max(max_val, 1), 1.0)
     return DELAY_MAX - (DELAY_MAX - DELAY_MIN) * intensity
 
-def get_key(x, y, center_x, center_y, deadzone):
+def get_nav_key(x, y, z, center_x, center_y, center_z, deadzone_x, deadzone_y, deadzone_z):
     dx = x - center_x
     dy = y - center_y
-    if abs(dx) >= abs(dy):
-        if dx >  deadzone: return 'right', dx
-        if dx < -deadzone: return 'left',  dx
+    dz = z - center_z
+
+    if abs(dx) >= abs(dy) and abs(dx) >= abs(dz):
+        if dx >  deadzone_x: return 'right', dx
+        if dx < -deadzone_x: return 'left',  dx
+    elif abs(dy) >= abs(dz):
+        if dy >  deadzone_y: return 'down', dy
+        if dy < -deadzone_y: return 'up',   dy
     else:
-        if dy >  deadzone: return 'down', dy
-        if dy < -deadzone: return 'up',   dy
+        if dz >  deadzone_z: return 'pgup', dz
+        if dz < -deadzone_z: return 'pgdn', dz
+    return None, 0
+
+def get_zoom_key(y, center_y, deadzone_y):
+    dy = y - center_y
+    if dy < -deadzone_y:
+        return "zoom_in", dy
+    if dy > deadzone_y:
+        return "zoom_out", dy
     return None, 0
 
 # ─── Calibration ──────────────────────────────────────────────────────────
-center_x, center_y, deadzone, max_x, max_y = calibrate()
+center_x, center_y, center_z, deadzone_x, deadzone_y, deadzone_z, max_x, max_y, max_z = calibrate()
 
 # ─── Boucle principale ────────────────────────────────────────────────────
 print("─────────────────────────────────────────")
@@ -136,21 +160,43 @@ last_send = 0
 
 try:
     while True:
-        x_val, y_val = read_values()
+        x_val, y_val, z_val, button = read_values()
         if x_val is None:
             continue
 
-        key, val = get_key(x_val, y_val, center_x, center_y, deadzone)
+        if button:
+            key, val = get_zoom_key(y_val, center_y, deadzone_y)
+            max_val = max_y
+        else:
+            key, val = get_nav_key(
+                x_val, y_val, z_val,
+                center_x, center_y, center_z,
+                deadzone_x, deadzone_y, deadzone_z
+            )
+            if key in ("left", "right"):
+                max_val = max_x
+            elif key in ("up", "down"):
+                max_val = max_y
+            else:
+                max_val = max_z
+
         now = time.time()
 
         if key:
-            delay = get_delay(val, max(max_x, max_y))
+            delay = get_delay(val, max_val)
             if now - last_send >= delay:
-                pyautogui.press(key)
+                if key == "zoom_in":
+                    pyautogui.hotkey("shift", "z")
+                elif key == "zoom_out":
+                    pyautogui.press("z")
+                else:
+                    pyautogui.press(key)
                 last_send = now
-                intensity = min(abs(val) / max(max_x, max_y), 1.0)
+                denom = float(max_val) or 1.0
+                intensity = min(abs(val) / denom, 1.0)
                 bar = "█" * int(intensity * 20)
-                print(f"\r[{key:^5}] {bar:<20} ({intensity*100:.0f}%)  ", end="", flush=True)
+                mode = "ZOOM" if button else "NAV"
+                print(f"\r[{mode}:{key:^8}] {bar:<20} ({intensity*100:.0f}%)  ", end="", flush=True)
         else:
             if last_key:
                 print(f"\r{'':50}", end="", flush=True)
