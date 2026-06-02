@@ -1,0 +1,197 @@
+{
+  "projet": {
+    "titre": "SpaceMouse DIY - Joystick 4 axes vers navigation CAO",
+    "objectif": "Transformer un joystick industriel D400X-R4 10K 4D en périphérique de navigation 3D compatible OnShape, remplaçant une SpaceMouse Pro Wireless",
+    
+    "composants": {
+      "actuels": [
+        {
+          "nom": "ESP32 WROOM",
+          "role": "Lecture des axes joystick via ADC, envoi UART au PC",
+          "pins_utilisees": "GPIO32 (X), GPIO35 (Y)"
+        },
+        {
+          "nom": "Joystick D400X-R4 10K 4D",
+          "role": "4 potentiomètres (X, Y, Z, R)",
+          "connexion": "3.3V/GND + 2 axes utilisés actuellement"
+        },
+        {
+          "nom": "FT232RL USB-série",
+          "role": "Alimentation stable 3.3V pour l'ESP32",
+          "connexion": "VCC → ESP32 3.3V, GND → GND"
+        },
+        {
+          "nom": "Câble USB ESP32",
+          "role": "Connexion UART au PC (COM7)",
+          "debit": "115200 baud"
+        }
+      ],
+      "a_commander": [
+        {
+          "nom": "Arduino Pro Micro ATmega32U4",
+          "role": "Pont UART→USB HID, émule SpaceMouse",
+          "spec": "5V/16MHz, USB-C",
+          "prix": "~7.99€",
+          "delai_livraison": "mardi 2 juin (stock 13 unités)",
+          "etape_futur": "Remplacera le script Python, réception + firmware"
+        }
+      ]
+    },
+    
+    "etapes_traversees": [
+      {
+        "num": 1,
+        "titre": "Diagnostique matériel",
+        "description": "Identification des pins joystick, câblage ADC, test lecture brute"
+      },
+      {
+        "num": 2,
+        "titre": "Problème BLE sur carte Elegoo",
+        "description": "Découverte : SDK 'dirty' v4.4.7 casse le BLE nativement sur ESP32 WROOM Elegoo"
+      },
+      {
+        "num": 3,
+        "titre": "Solution alimentation FT232RL",
+        "description": "Ajout convertisseur USB-série pour alimentation 3.3V stable → BLE démarre"
+      },
+      {
+        "num": 4,
+        "titre": "Tentative HID BLE natif",
+        "description": "Code NimBLE HID → Windows reconnaît le device mais OnShape reste muet (NavLib propriétaire)"
+      },
+      {
+        "num": 5,
+        "titre": "Pivot vers clavier",
+        "description": "Abandons HID complexe, adoption solution pragmatique : flèches clavier + calibration"
+      },
+      {
+        "num": 6,
+        "titre": "Solution temporaire validée",
+        "description": "Script Python envoie flèches, OnShape répond, utilisable immédiatement"
+      },
+      {
+        "num": 7,
+        "titre": "Commande Pro Micro",
+        "description": "Solution définitive USB HID confirmée par projets TeachingTech/jfedor"
+      }
+    ],
+    
+    "solution_temporaire": {
+      "description": "Script Python sur PC reçoit axes ESP32 via UART, envoie flèches au clavier. OnShape utilise les raccourcis fléchés pour naviguer.",
+      "architecture": {
+        "etape_1": "ESP32 lit ADC (GPIO32=X, GPIO35=Y)",
+        "etape_2": "ESP32 envoie valeurs formatées : 'X:±32767,Y:±32767\\n' via UART (COM7, 115200 baud)",
+        "etape_3": "Script Python reçoit, décode, calibre zone morte",
+        "etape_4": "Selon intensité joystick, envoie touches : Left/Right/Up/Down avec répétition variable",
+        "etape_5": "OnShape reçoit touches → pan/zoom via raccourcis par défaut"
+      },
+      
+      "fichiers_code": [
+        {
+          "nom": "spacemouse_uart.ino",
+          "plateforme": "ESP32 WROOM",
+          "role": "Firmware microcontrôleur",
+          "fonctionnement": [
+            "Lit ADC axes calibrés (centre X:1906, Y:1998)",
+            "Applique zone morte et sensibilité",
+            "Envoie via Serial.println() format CSV",
+            "Fréquence : ~60 Hz"
+          ],
+          "pins": {
+            "PIN_X": "GPIO32",
+            "PIN_Y": "GPIO35",
+            "CENTER_X": 1906,
+            "CENTER_Y": 1998,
+            "DEADZONE": 60
+          },
+          "upload": "Arduino IDE → ESP32 Dev Module → Partition Scheme: Huge APP (3MB)"
+        },
+        {
+          "nom": "spacemouse_keyboard.py",
+          "plateforme": "Windows PC",
+          "role": "Lecteur UART + émulateur clavier",
+          "fonctionnement": [
+            "Lance calibration interactive (3 étapes)",
+            "Calcule zone morte = max(bruit*4, 3000)",
+            "Boucle : reçoit 'X:val,Y:val' → décode",
+            "Mappe axes sur touches (axe dominant)",
+            "Répétition variable : 0.15s (léger) à 0.02s (fond)",
+            "pyautogui.press() → injection clavier Windows"
+          ],
+          "calibration": {
+            "etape_1": "Position repos → mesure centre et bruit (50 échantillons)",
+            "etape_2": "Mouvements max → mesure plage (5 secondes)",
+            "etape_3": "Calcul zone morte auto = max(noise*4, 3000)"
+          },
+          "installation": "pip install pyserial pyautogui",
+          "parametres": {
+            "COM_PORT": "COM7",
+            "BAUD_RATE": 115200,
+            "DELAY_MAX": "0.15s (zone légère)",
+            "DELAY_MIN": "0.02s (zone fond)",
+            "DEADZONE_MIN": 3000
+          }
+        }
+      ],
+      
+      "raccourcis_onshape": {
+        "action": "Flèches clavier natives OnShape",
+        "left": "Pan gauche",
+        "right": "Pan droite",
+        "up": "Pan haut",
+        "down": "Pan bas",
+        "note": "OnShape reconnaît nativement les flèches pour navigation viewport"
+      },
+      
+      "fluidite": "Joystick légèrement incliné → touches lentes (150ms entre appuis). À fond → touches rapides (20ms). Sensation de mouvement fluide similaire SpaceMouse.",
+      
+      "limitations": [
+        "4 directions seulement (pas de diagonales ni rotation Z)",
+        "Dépend des raccourcis clavier OnShape par défaut",
+        "Pas de vrai 6DOF comme SpaceMouse",
+        "Solution de transition jusqu'à Pro Micro"
+      ]
+    },
+    
+    "solution_definitive_futur": {
+      "composant": "Arduino Pro Micro ATmega32U4",
+      "architecture": [
+        "ESP32 → UART (TX/RX/GND) → Arduino Pro Micro",
+        "Pro Micro reçoit axes, émule HID SpaceMouse exact",
+        "Driver 3Dconnexion reconnaît automatiquement",
+        "OnShape reçoit vrais rapports HID 6DOF"
+      ],
+      "avantages": [
+        "Plug & play (pas de script Python)",
+        "Vrai 6DOF (translation X/Y/Z + rotation)",
+        "Compatible tous les CAO (OnShape, Fusion360, etc)",
+        "Firmware open source prouvé TeachingTech/jfedor"
+      ],
+      "firmware_base": "Projet Space Mushroom (jfedor HID emulation)",
+      "etapes": [
+        "1. Réception Pro Micro",
+        "2. Firmware Arduino Pro Micro (HID SpaceMouse)",
+        "3. Câblage ESP32 TX → Pro Micro RX",
+        "4. Flasher les 2 microcontrôleurs",
+        "5. Test plug & play dans OnShape"
+      ]
+    },
+    
+    "materiel_requis": {
+      "alimentation": "FT232RL 3.3V connecté (déjà en place)",
+      "cables": [
+        "USB-A vers micro-USB (ESP32)",
+        "USB-C vers USB-A (Pro Micro futur)",
+        "3 fils UART (RX/TX/GND pour Pro Micro)"
+      ],
+      "breadboard": "Optionnel pour partager 3.3V/GND"
+    },
+    
+    "prochaines_etapes": [
+      "1. Utiliser script Python + ESP32 pour naviguer OnShape avec flèches",
+      "2. Affiner calibration si besoin",
+      "3. Réception Pro Micro (prévu mardi 2 juin)",
+      "4. Migration vers solution définitive HID"
+    ]
+  }
+}
